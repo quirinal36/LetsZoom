@@ -15,6 +15,13 @@ static bool g_bActive = false;
 static int g_zoomLevel = 200;
 static bool g_smoothZoom = true;
 
+// 패닝 관련
+static int g_panOffsetX = 0;
+static int g_panOffsetY = 0;
+static bool g_bDragging = false;
+static POINT g_ptDragStart = {0};
+static POINT g_ptPanStart = {0};
+
 // 렌더링 관련
 static HDC g_hdcScreen = NULL;
 static HDC g_hdcMem = NULL;
@@ -112,9 +119,9 @@ static void RenderZoom(HDC hdc)
     int captureWidth = (int)(g_screenWidth / zoom);
     int captureHeight = (int)(g_screenHeight / zoom);
 
-    // 캡처 영역의 중심을 커서 위치로
-    int captureX = cursor.x - captureWidth / 2;
-    int captureY = cursor.y - captureHeight / 2;
+    // 캡처 영역의 중심을 커서 위치 + 패닝 오프셋으로
+    int captureX = cursor.x - captureWidth / 2 + g_panOffsetX;
+    int captureY = cursor.y - captureHeight / 2 + g_panOffsetY;
 
     // 화면 경계 체크
     if (captureX < 0) captureX = 0;
@@ -165,6 +172,36 @@ static void RenderZoom(HDC hdc)
 
     SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
+
+    // UI 오버레이 그리기 (줌 레벨 표시)
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, RGB(255, 255, 255));
+
+    WCHAR zoomText[64];
+    swprintf_s(zoomText, 64, L"확대: %d%%", g_zoomLevel);
+
+    RECT textRect = {20, 20, 300, 60};
+
+    // 반투명 배경
+    HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBrush);
+    HPEN hTransPen = CreatePen(PS_NULL, 0, 0);
+    HPEN hOldTransPen = (HPEN)SelectObject(hdc, hTransPen);
+
+    Rectangle(hdc, textRect.left, textRect.top, textRect.right, textRect.bottom);
+
+    SelectObject(hdc, hOldTransPen);
+    SelectObject(hdc, hOldBrush);
+    DeleteObject(hTransPen);
+    DeleteObject(hBrush);
+
+    // 텍스트
+    DrawTextW(hdc, zoomText, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+    // ESC 힌트
+    WCHAR hintText[] = L"ESC: 종료 | 휠: 줌 | 드래그: 이동 | +/-: 줌 조절";
+    RECT hintRect = {20, g_screenHeight - 60, g_screenWidth - 20, g_screenHeight - 20};
+    DrawTextW(hdc, hintText, -1, &hintRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 }
 
 /**
@@ -193,10 +230,105 @@ static LRESULT CALLBACK ZoomWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             return 0;
 
         case WM_KEYDOWN:
-            if (wParam == VK_ESCAPE) {
-                // ESC 키로 종료
-                OutputDebugStringW(L"[ZoomOverlay] ESC pressed, hiding zoom\n");
-                ZoomOverlay_Hide();
+            switch (wParam) {
+                case VK_ESCAPE:
+                    // ESC 키로 종료
+                    OutputDebugStringW(L"[ZoomOverlay] ESC pressed, hiding zoom\n");
+                    ZoomOverlay_Hide();
+                    break;
+
+                case VK_ADD:
+                case VK_OEM_PLUS:
+                case 187:  // '=' key
+                    // + 키로 확대
+                    g_zoomLevel += 25;
+                    if (g_zoomLevel > 2000) g_zoomLevel = 2000;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+
+                case VK_SUBTRACT:
+                case VK_OEM_MINUS:
+                case 189:  // '-' key
+                    // - 키로 축소
+                    g_zoomLevel -= 25;
+                    if (g_zoomLevel < 100) g_zoomLevel = 100;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+
+                case VK_LEFT:
+                    // 왼쪽 화살표
+                    g_panOffsetX -= 50;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+
+                case VK_RIGHT:
+                    // 오른쪽 화살표
+                    g_panOffsetX += 50;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+
+                case VK_UP:
+                    // 위쪽 화살표
+                    g_panOffsetY -= 50;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+
+                case VK_DOWN:
+                    // 아래쪽 화살표
+                    g_panOffsetY += 50;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    break;
+            }
+            return 0;
+
+        case WM_MOUSEWHEEL: {
+            // 마우스 휠로 줌 레벨 조절
+            int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+            if (delta > 0) {
+                // 휠 위로 - 확대
+                g_zoomLevel += 25;
+                if (g_zoomLevel > 2000) g_zoomLevel = 2000;
+            } else {
+                // 휠 아래로 - 축소
+                g_zoomLevel -= 25;
+                if (g_zoomLevel < 100) g_zoomLevel = 100;
+            }
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 0;
+        }
+
+        case WM_LBUTTONDOWN: {
+            // 드래그 시작
+            g_bDragging = true;
+            g_ptDragStart.x = LOWORD(lParam);
+            g_ptDragStart.y = HIWORD(lParam);
+            g_ptPanStart.x = g_panOffsetX;
+            g_ptPanStart.y = g_panOffsetY;
+            SetCapture(hwnd);
+            return 0;
+        }
+
+        case WM_MOUSEMOVE: {
+            if (g_bDragging) {
+                // 드래그 중 - 패닝
+                int deltaX = LOWORD(lParam) - g_ptDragStart.x;
+                int deltaY = HIWORD(lParam) - g_ptDragStart.y;
+
+                // 확대 배율에 따라 패닝 속도 조절
+                float zoom = (float)g_zoomLevel / 100.0f;
+                g_panOffsetX = g_ptPanStart.x + (int)(deltaX / zoom);
+                g_panOffsetY = g_ptPanStart.y + (int)(deltaY / zoom);
+
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            return 0;
+        }
+
+        case WM_LBUTTONUP:
+            // 드래그 종료
+            if (g_bDragging) {
+                g_bDragging = false;
+                ReleaseCapture();
             }
             return 0;
 
@@ -291,6 +423,11 @@ bool ZoomOverlay_Show(int zoomLevel, bool smoothZoom)
 
     g_zoomLevel = zoomLevel;
     g_smoothZoom = smoothZoom;
+
+    // 패닝 오프셋 초기화
+    g_panOffsetX = 0;
+    g_panOffsetY = 0;
+    g_bDragging = false;
 
     // 렌더링 리소스 생성
     if (!CreateRenderResources()) {
