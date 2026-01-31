@@ -6,6 +6,7 @@
 
 #include <windows.h>
 #include <stdbool.h>
+#include "tray.h"
 
 // 윈도우 클래스 이름
 #define WINDOW_CLASS_NAME L"LetsZoomMainWindow"
@@ -29,12 +30,46 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case WM_DESTROY:
             // 윈도우 파괴 시
             OutputDebugStringW(L"[LetsZoom] Main window destroyed\n");
+            Tray_Shutdown();
             PostQuitMessage(0);
             return 0;
 
         case WM_CLOSE:
             // 윈도우 닫기 시 (최소화만 하고 종료 안 함)
             OutputDebugStringW(L"[LetsZoom] WM_CLOSE received\n");
+            return 0;
+
+        case WM_TRAYICON:
+            // 트레이 아이콘 메시지
+            Tray_HandleMessage(hwnd, lParam);
+            return 0;
+
+        case WM_COMMAND:
+            // 메뉴 명령 처리
+            switch (LOWORD(wParam)) {
+                case IDM_EXIT:
+                    DestroyWindow(hwnd);
+                    break;
+
+                case IDM_SETTINGS:
+                    MessageBoxW(hwnd, L"설정 창은 나중에 구현됩니다.", L"설정", MB_OK);
+                    break;
+
+                case IDM_ABOUT:
+                    MessageBoxW(
+                        hwnd,
+                        L"LetsZoom v0.1.0\n\n"
+                        L"경량 화면 확대 및 주석 도구\n\n"
+                        L"Phase 1 완료:\n"
+                        L"✓ VS Code 개발 환경\n"
+                        L"✓ CMake 빌드 시스템\n"
+                        L"✓ 기본 윈도우 및 메시지 루프\n"
+                        L"✓ 트레이 아이콘 및 메뉴",
+                        L"LetsZoom 정보",
+                        MB_OK | MB_ICONINFORMATION
+                    );
+                    break;
+            }
             return 0;
 
         default:
@@ -117,17 +152,17 @@ static bool Initialize(HINSTANCE hInstance)
         return false;
     }
 
+    // 3. 트레이 아이콘 초기화
+    if (!Tray_Initialize(g_hwndMain)) {
+        return false;
+    }
+
     OutputDebugStringW(L"[LetsZoom] Initialization completed\n");
 
-    // 초기화 완료 메시지 (임시)
-    MessageBoxW(
-        NULL,
-        L"LetsZoom이 초기화되었습니다!\n\n"
-        L"현재 Phase 1 완료:\n"
-        L"✓ 기본 윈도우 및 메시지 루프\n\n"
-        L"다음 단계: 트레이 아이콘 구현",
-        L"LetsZoom - Phase 1",
-        MB_OK | MB_ICONINFORMATION
+    // 초기화 완료 알림
+    Tray_ShowNotification(
+        L"LetsZoom",
+        L"LetsZoom이 시작되었습니다!\n트레이 아이콘을 우클릭하여 메뉴를 여세요."
     );
 
     return true;
@@ -139,6 +174,8 @@ static bool Initialize(HINSTANCE hInstance)
 static void Cleanup(void)
 {
     OutputDebugStringW(L"[LetsZoom] Cleaning up...\n");
+
+    Tray_Shutdown();
 
     if (g_hwndMain) {
         DestroyWindow(g_hwndMain);
