@@ -1,14 +1,174 @@
 /**
  * LetsZoom - 경량 화면 확대 및 주석 도구
  *
- * Phase 1: 프로젝트 셋업
- * Issue #2: CMake 빌드 시스템 구성 테스트
+ * main.c - 메인 진입점 및 메시지 루프
  */
 
 #include <windows.h>
+#include <stdbool.h>
+
+// 윈도우 클래스 이름
+#define WINDOW_CLASS_NAME L"LetsZoomMainWindow"
+#define WINDOW_TITLE L"LetsZoom"
+
+// 전역 변수
+static HWND g_hwndMain = NULL;
+static bool g_bRunning = true;
 
 /**
- * WinMain - Windows GUI 애플리케이션 진입점
+ * 윈도우 프로시저 - 메시지 처리
+ */
+LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg) {
+        case WM_CREATE:
+            // 윈도우 생성 시
+            OutputDebugStringW(L"[LetsZoom] Main window created\n");
+            return 0;
+
+        case WM_DESTROY:
+            // 윈도우 파괴 시
+            OutputDebugStringW(L"[LetsZoom] Main window destroyed\n");
+            PostQuitMessage(0);
+            return 0;
+
+        case WM_CLOSE:
+            // 윈도우 닫기 시 (최소화만 하고 종료 안 함)
+            OutputDebugStringW(L"[LetsZoom] WM_CLOSE received\n");
+            return 0;
+
+        default:
+            return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+}
+
+/**
+ * 윈도우 클래스 등록
+ */
+static bool RegisterMainWindow(HINSTANCE hInstance)
+{
+    WNDCLASSEXW wc = {0};
+
+    wc.cbSize = sizeof(WNDCLASSEXW);
+    wc.style = 0;
+    wc.lpfnWndProc = MainWndProc;
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = hInstance;
+    wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.lpszMenuName = NULL;
+    wc.lpszClassName = WINDOW_CLASS_NAME;
+    wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+
+    if (!RegisterClassExW(&wc)) {
+        MessageBoxW(NULL, L"윈도우 클래스 등록 실패!", L"오류", MB_ICONERROR);
+        return false;
+    }
+
+    OutputDebugStringW(L"[LetsZoom] Window class registered\n");
+    return true;
+}
+
+/**
+ * 숨겨진 메인 윈도우 생성 (메시지 수신용)
+ */
+static HWND CreateMainWindow(HINSTANCE hInstance)
+{
+    // 화면 밖에 숨겨진 윈도우 생성
+    HWND hwnd = CreateWindowExW(
+        0,                          // dwExStyle
+        WINDOW_CLASS_NAME,          // lpClassName
+        WINDOW_TITLE,               // lpWindowName
+        WS_OVERLAPPED,              // dwStyle (최소 스타일)
+        -32000, -32000,             // x, y (화면 밖)
+        1, 1,                       // width, height (최소 크기)
+        NULL,                       // hWndParent
+        NULL,                       // hMenu
+        hInstance,                  // hInstance
+        NULL                        // lpParam
+    );
+
+    if (!hwnd) {
+        MessageBoxW(NULL, L"메인 윈도우 생성 실패!", L"오류", MB_ICONERROR);
+        return NULL;
+    }
+
+    OutputDebugStringW(L"[LetsZoom] Main window created (hidden)\n");
+    return hwnd;
+}
+
+/**
+ * 초기화
+ */
+static bool Initialize(HINSTANCE hInstance)
+{
+    OutputDebugStringW(L"[LetsZoom] Initializing...\n");
+
+    // 1. 윈도우 클래스 등록
+    if (!RegisterMainWindow(hInstance)) {
+        return false;
+    }
+
+    // 2. 메인 윈도우 생성
+    g_hwndMain = CreateMainWindow(hInstance);
+    if (!g_hwndMain) {
+        return false;
+    }
+
+    OutputDebugStringW(L"[LetsZoom] Initialization completed\n");
+
+    // 초기화 완료 메시지 (임시)
+    MessageBoxW(
+        NULL,
+        L"LetsZoom이 초기화되었습니다!\n\n"
+        L"현재 Phase 1 완료:\n"
+        L"✓ 기본 윈도우 및 메시지 루프\n\n"
+        L"다음 단계: 트레이 아이콘 구현",
+        L"LetsZoom - Phase 1",
+        MB_OK | MB_ICONINFORMATION
+    );
+
+    return true;
+}
+
+/**
+ * 정리
+ */
+static void Cleanup(void)
+{
+    OutputDebugStringW(L"[LetsZoom] Cleaning up...\n");
+
+    if (g_hwndMain) {
+        DestroyWindow(g_hwndMain);
+        g_hwndMain = NULL;
+    }
+
+    OutputDebugStringW(L"[LetsZoom] Cleanup completed\n");
+}
+
+/**
+ * 메시지 루프
+ */
+static int MessageLoop(void)
+{
+    MSG msg;
+
+    OutputDebugStringW(L"[LetsZoom] Entering message loop...\n");
+
+    // 메시지 루프
+    while (GetMessage(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    OutputDebugStringW(L"[LetsZoom] Exiting message loop\n");
+    return (int)msg.wParam;
+}
+
+/**
+ * WinMain - 진입점
  */
 int WINAPI WinMain(
     HINSTANCE hInstance,
@@ -16,19 +176,26 @@ int WINAPI WinMain(
     LPSTR lpCmdLine,
     int nCmdShow)
 {
-    (void)hInstance;
     (void)hPrevInstance;
     (void)lpCmdLine;
     (void)nCmdShow;
 
-    // 빌드 테스트용 메시지 박스
-    MessageBoxW(
-        NULL,
-        L"LetsZoom 빌드 시스템이 정상적으로 작동합니다!\n\n"
-        L"다음 단계: Issue #3 - 기본 윈도우 및 메시지 루프 구현",
-        L"LetsZoom - Build Test",
-        MB_OK | MB_ICONINFORMATION
-    );
+    int exitCode = 0;
 
-    return 0;
+    OutputDebugStringW(L"[LetsZoom] Application started\n");
+
+    // 1. 초기화
+    if (!Initialize(hInstance)) {
+        MessageBoxW(NULL, L"초기화 실패!", L"오류", MB_ICONERROR);
+        return 1;
+    }
+
+    // 2. 메시지 루프
+    exitCode = MessageLoop();
+
+    // 3. 정리
+    Cleanup();
+
+    OutputDebugStringW(L"[LetsZoom] Application exited\n");
+    return exitCode;
 }
