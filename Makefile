@@ -6,7 +6,7 @@ CC = gcc
 WINDRES = windres
 
 # 소스 파일
-SOURCES = src/main.c
+SOURCES = src/main.c src/tray.c src/hotkey.c src/settings.c
 OBJECTS = $(SOURCES:.c=.o)
 
 # 타겟 이름
