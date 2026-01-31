@@ -4,6 +4,7 @@
 
 #include "hotkey.h"
 #include "zoom_overlay.h"
+#include "drawing_overlay.h"
 
 // 초기화 상태
 static bool g_bInitialized = false;
@@ -97,12 +98,11 @@ void Hotkey_HandleMessage(WPARAM hotkeyId)
 
         case HOTKEY_DRAW:
             OutputDebugStringW(L"[LetsZoom] Hotkey: Draw (Ctrl+2)\n");
-            MessageBoxW(
-                NULL,
-                L"그리기 모드 (Ctrl+2) 실행!\n\nPhase 4에서 구현됩니다.",
-                L"LetsZoom - 그리기 모드",
-                MB_OK | MB_ICONINFORMATION
-            );
+            if (DrawingOverlay_IsActive()) {
+                DrawingOverlay_Hide();
+            } else {
+                DrawingOverlay_Show(RGB(255, 0, 0), 3, 255);  // 빨간색, 3px, 불투명
+            }
             break;
 
         case HOTKEY_ZOOM_DRAW:

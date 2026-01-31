@@ -24,6 +24,8 @@ set(SOURCES
     src/settings.h
     src/zoom_overlay.c
     src/zoom_overlay.h
+    src/drawing_overlay.c
+    src/drawing_overlay.h
 )
 
 # 실행 파일 생성 (WIN32 = GUI 애플리케이션)
