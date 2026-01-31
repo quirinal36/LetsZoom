@@ -3,6 +3,7 @@
  */
 
 #include "hotkey.h"
+#include "zoom_overlay.h"
 
 // 초기화 상태
 static bool g_bInitialized = false;
@@ -87,12 +88,11 @@ void Hotkey_HandleMessage(WPARAM hotkeyId)
     switch (hotkeyId) {
         case HOTKEY_ZOOM:
             OutputDebugStringW(L"[LetsZoom] Hotkey: Zoom (Ctrl+1)\n");
-            MessageBoxW(
-                NULL,
-                L"확대 모드 (Ctrl+1) 실행!\n\nPhase 3에서 구현됩니다.",
-                L"LetsZoom - 확대 모드",
-                MB_OK | MB_ICONINFORMATION
-            );
+            if (ZoomOverlay_IsActive()) {
+                ZoomOverlay_Hide();
+            } else {
+                ZoomOverlay_Show(200, true);  // 200% 확대, 부드러운 확대
+            }
             break;
 
         case HOTKEY_DRAW:

@@ -9,6 +9,7 @@
 #include "tray.h"
 #include "hotkey.h"
 #include "settings.h"
+#include "zoom_overlay.h"
 
 // 윈도우 클래스 이름
 #define WINDOW_CLASS_NAME L"LetsZoomMainWindow"
@@ -66,16 +67,15 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 case IDM_ABOUT:
                     MessageBoxW(
                         hwnd,
-                        L"LetsZoom v0.3.0\n\n"
+                        L"LetsZoom v0.4.0\n\n"
                         L"경량 화면 확대 및 주석 도구\n\n"
-                        L"Phase 1 완료:\n"
-                        L"✓ VS Code 개발 환경\n"
-                        L"✓ CMake 빌드 시스템\n"
-                        L"✓ 기본 윈도우 및 메시지 루프\n"
-                        L"✓ 트레이 아이콘 및 메뉴\n\n"
-                        L"Phase 2 완료:\n"
-                        L"✓ 전역 단축키 (Ctrl+1~4)\n"
-                        L"✓ 설정 저장/불러오기 (INI 파일)",
+                        L"Phase 1-2 완료:\n"
+                        L"✓ VS Code 개발 환경 및 빌드 시스템\n"
+                        L"✓ 트레이 아이콘 및 전역 단축키\n"
+                        L"✓ 설정 저장/불러오기 (INI 파일)\n\n"
+                        L"Phase 3 진행 중:\n"
+                        L"✓ 화면 확대 오버레이 (Ctrl+1)\n"
+                        L"⧗ 확대 영역 렌더링 최적화",
                         L"LetsZoom 정보",
                         MB_OK | MB_ICONINFORMATION
                     );
@@ -177,6 +177,11 @@ static bool Initialize(HINSTANCE hInstance)
         return false;
     }
 
+    // 6. 확대 오버레이 초기화
+    if (!ZoomOverlay_Initialize(hInstance)) {
+        return false;
+    }
+
     OutputDebugStringW(L"[LetsZoom] Initialization completed\n");
 
     // 초기화 완료 알림 (설정에서 활성화된 경우)
@@ -201,6 +206,7 @@ static void Cleanup(void)
     Settings_Save(&g_settings);
 
     if (g_hwndMain) {
+        ZoomOverlay_Shutdown();
         Hotkey_Shutdown(g_hwndMain);
         Tray_Shutdown();
         DestroyWindow(g_hwndMain);
