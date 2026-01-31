@@ -18,6 +18,8 @@ set(SOURCES
     src/main.c
     src/tray.c
     src/tray.h
+    src/hotkey.c
+    src/hotkey.h
 )
 
 # 실행 파일 생성 (WIN32 = GUI 애플리케이션)

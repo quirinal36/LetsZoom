@@ -7,6 +7,7 @@
 #include <windows.h>
 #include <stdbool.h>
 #include "tray.h"
+#include "hotkey.h"
 
 // 윈도우 클래스 이름
 #define WINDOW_CLASS_NAME L"LetsZoomMainWindow"
@@ -44,6 +45,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             Tray_HandleMessage(hwnd, lParam);
             return 0;
 
+        case WM_HOTKEY:
+            // 전역 단축키 메시지
+            Hotkey_HandleMessage(wParam);
+            return 0;
+
         case WM_COMMAND:
             // 메뉴 명령 처리
             switch (LOWORD(wParam)) {
@@ -58,13 +64,16 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 case IDM_ABOUT:
                     MessageBoxW(
                         hwnd,
-                        L"LetsZoom v0.1.0\n\n"
+                        L"LetsZoom v0.2.0\n\n"
                         L"경량 화면 확대 및 주석 도구\n\n"
                         L"Phase 1 완료:\n"
                         L"✓ VS Code 개발 환경\n"
                         L"✓ CMake 빌드 시스템\n"
                         L"✓ 기본 윈도우 및 메시지 루프\n"
-                        L"✓ 트레이 아이콘 및 메뉴",
+                        L"✓ 트레이 아이콘 및 메뉴\n\n"
+                        L"Phase 2 진행 중:\n"
+                        L"✓ 전역 단축키 (Ctrl+1~4)\n"
+                        L"⧗ 설정 저장/불러오기",
                         L"LetsZoom 정보",
                         MB_OK | MB_ICONINFORMATION
                     );
@@ -157,6 +166,11 @@ static bool Initialize(HINSTANCE hInstance)
         return false;
     }
 
+    // 4. 전역 단축키 등록
+    if (!Hotkey_Initialize(g_hwndMain)) {
+        return false;
+    }
+
     OutputDebugStringW(L"[LetsZoom] Initialization completed\n");
 
     // 초기화 완료 알림
@@ -175,9 +189,9 @@ static void Cleanup(void)
 {
     OutputDebugStringW(L"[LetsZoom] Cleaning up...\n");
 
-    Tray_Shutdown();
-
     if (g_hwndMain) {
+        Hotkey_Shutdown(g_hwndMain);
+        Tray_Shutdown();
         DestroyWindow(g_hwndMain);
         g_hwndMain = NULL;
     }
